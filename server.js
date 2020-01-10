@@ -153,7 +153,10 @@ app.get('/paypal/create_donation/:size', function(req, res){
   let pay_size = parseFloat(req.params['size']) || 5
   //build PayPal payment request
   var payReq = JSON.stringify({
-    'intent':'sale',
+    'intent':'authorize',
+    'payer': {
+      'payment_method': 'paypal'
+    },
     'redirect_urls':{
       'return_url':`${config.base_url}/paypal/process`,
       'cancel_url':`${config.base_url}/paypal/cancel`
@@ -162,6 +165,7 @@ app.get('/paypal/create_donation/:size', function(req, res){
       'payment_method':'paypal'
     },
     'transactions':[{
+      'item_list': {},
       'amount':{
         'total': pay_size,
         'currency':'USD'
@@ -194,10 +198,10 @@ app.get('/paypal/create_donation/:size', function(req, res){
 })
 
 app.get('/paypal/process', function(req, res){
-  var paymentId = req.query.paymentId
-  var token = req.query.token
+  var paymentId = req.query.paymentId || ""
+  var token = req.query.token || false
 
-  if (paymentId) {
+  if (paymentId && token == false) {
     paypal.payment.execute(paymentId, paymentId, function(error, payment){
       if(error){
         console.error(error);
