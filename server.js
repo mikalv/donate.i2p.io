@@ -198,7 +198,7 @@ app.get('/paypal/process', function(req, res){
   var token = req.query.token
 
   if (paymentId) {
-    paypal.payment.execute(paymentId, payerId, function(error, payment){
+    paypal.payment.execute(paymentId, paymentId, function(error, payment){
       if(error){
         console.error(error);
       } else {
