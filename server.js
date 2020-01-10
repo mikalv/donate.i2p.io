@@ -225,7 +225,7 @@ app.get('/paypal/process', function(req, res){
 })
 
 http.createServer(app).listen(config.listen_port, function () {
-  console.log(`Server started: Listening on port ${config.listen_port}`)
+  console.log(`Server started: Listening on port http://127.0.0.1:${config.listen_port}`)
 })
 
 
