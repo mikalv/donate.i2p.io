@@ -5,7 +5,9 @@ const http = require('http'),
     logger = require('morgan'),
     path = require('path'),
     fs = require('fs'),
-    app = require('express')()
+    app = require('express')(),
+    session = require('express-session'),
+    util = require('util')
 
 const environment = process.env.ENV || 'development'
 const config = require(`./config/${environment}.js`)
@@ -15,13 +17,25 @@ const stripe = require('stripe')(config.stripe.sk),
       _ = require('lodash')
 
 app.enable('trust proxy')
-app.use(bodyParser.json())
+app.use(bodyParser.json());
+app.use(bodyParser.urlencoded({
+	extended: true
+}));
 app.use(logger())
+app.use(session({
+  secret: 'keyboard cat',
+  resave: false,
+  saveUninitialized: true,
+  cookie: { secure: true }
+}))
 
 const index_content = fs.readFileSync(path.join(__dirname, 'public', 'index.html')).toString()
 const iban_content = fs.readFileSync(path.join(__dirname, 'public', 'iban.html')).toString()
 const crypto_content = fs.readFileSync(path.join(__dirname, 'public', 'crypto.html')).toString()
 
+function inspect(obj) {
+  console.log(util.inspect(obj, {showHidden: false, depth: null}))
+}
 
 paypal.configure({
   'mode': config.paypal.mode, //sandbox or live
@@ -153,7 +167,7 @@ app.get('/paypal/create_donation/:size', function(req, res){
   let pay_size = parseFloat(req.params['size']) || 5
   //build PayPal payment request
   var payReq = JSON.stringify({
-    'intent':'authorize',
+    'intent':'sale',
     'payer': {
       'payment_method': 'paypal'
     },
@@ -173,53 +187,85 @@ app.get('/paypal/create_donation/:size', function(req, res){
       'description':'Donation to I2P.'
     }]
   })
-
-  paypal.payment.create(payReq, function(error, payment){
-    if(error){
-      console.error(error)
-    } else {
-      //capture HATEOAS links
-      var links = {};
-      payment.links.forEach(function(linkObj){
-        links[linkObj.rel] = {
-          'href': linkObj.href,
-          'method': linkObj.method
-        }
-      })
-
-      //if redirect url present, redirect user
-      if (links.hasOwnProperty('approval_url')){
-        res.redirect(links['approval_url'].href)
-      } else {
-        console.error('no redirect URI present')
-      }
+  req.session.last_pay_size = pay_size
+  req.session.save(function(err) {
+    if (err) {
+      console.log(err)
     }
+    paypal.payment.create(payReq, function(error, payment){
+      if(error){
+        console.error(error)
+      } else {
+        //capture HATEOAS links
+        var links = {};
+        payment.links.forEach(function(linkObj){
+          links[linkObj.rel] = {
+            'href': linkObj.href,
+            'method': linkObj.method
+          }
+        })
+
+        //if redirect url present, redirect user
+        if (links.hasOwnProperty('approval_url')){
+  	inspect(links['approval_url'].href)
+          return res.redirect(links['approval_url'].href)
+        } else {
+          return console.error('no redirect URI present')
+        }
+      }
+    })
   })
 })
 
 app.get('/paypal/process', function(req, res){
   var paymentId = req.query.paymentId || ""
+  var payerId = req.query.PayerID || ""
   var token = req.query.token || false
+  console.log(paymentId)
+  console.log(token)
+  console.log(req.body)
+  console.log(paypal.payment)
 
-  if (paymentId && token == false) {
-    paypal.payment.execute(paymentId, paymentId, function(error, payment){
-      if(error){
-        console.error(error);
-      } else {
-        if (payment.state == 'approved'){
-          res.redirect('/')
-          //res.send('payment completed successfully')
-        } else {
-          res.send('payment/donation failed :(')
-        }
+  if (paymentId.length > 0 && token !== false) {
+    inspect(req.session)
+    paypal.payment.get(paymentId, function(error, ppayment){
+      inspect(ppayment.transactions[0].amount.total)
+      let current_donation_size = ppayment.transactions[0].amount.total
+      let payjson = {
+        'transactions':[{
+          'amount':{
+            'total': current_donation_size,
+            'currency':'USD'
+          },
+        }],
+        'payer_id': payerId,
       }
+      inspect(payjson)
+      paypal.payment.execute(paymentId, payjson, function(error, payment){
+        if(error){
+          console.error(error);
+          res.send('payment/donation failed :(')
+  	return
+        } else {
+          if (payment.state == 'approved'){
+            res.redirect('/')
+            //res.send('payment completed successfully')
+  	  return
+          } else {
+            res.send('payment/donation failed :(')
+  	  return
+          }
+        }
+      })
     })
   }
-  if (token) {
+  if (paymentId.length == 0) {
     paypal.billingAgreement.execute(token, {}, function (error, billingAgreement) {
       if (error) {
         console.error(error)
-        throw error
+	console.error(error.response)
+	res.redirect('/')
+        //throw error
       } else {
         console.log(JSON.stringify(billingAgreement))
         res.redirect('/')
