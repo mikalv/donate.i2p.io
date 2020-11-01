@@ -30,6 +30,7 @@ app.use(session({
 }))
 
 const index_content = fs.readFileSync(path.join(__dirname, 'public', 'index.html')).toString()
+const about_content = fs.readFileSync(path.join(__dirname, 'public', 'about.html')).toString()
 const iban_content = fs.readFileSync(path.join(__dirname, 'public', 'iban.html')).toString()
 const crypto_content = fs.readFileSync(path.join(__dirname, 'public', 'crypto.html')).toString()
 
@@ -150,6 +151,9 @@ app.use(express.static('public', static_file_options))
 app.get('/', function(req, res){
   //console.log(req)
   res.send(index_content)
+})
+app.get('/about', function(req, res){
+  res.send(about_content)
 })
 app.get('/iban', function(req, res){
   res.send(iban_content)
