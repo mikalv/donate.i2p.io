@@ -16,7 +16,7 @@
     "express": "^4.17.1",
     "express-session": "^1.17.0",
     "lodash": "^4.17.19",
-    "moment": "^2.24.0",
+    "moment": "^2.29.4",
     "morgan": "^1.9.1",
     "paypal-rest-sdk": "^1.8.1",
     "stripe": "^7.14.0"
